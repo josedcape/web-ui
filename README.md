@@ -1,6 +1,11 @@
-<img src="./assets/web-ui.png" alt="Browser Use Web UI" width="full"/>
+
+<img src="./assets/web-ui.png" alt="AUTONOBOT Web UI" width="full"/>
 
 <br/>
+
+# AUTONOBOT
+
+_Agente de navegacion autonoma para cualquier tarea_
 
 [![GitHub stars](https://img.shields.io/github/stars/browser-use/web-ui?style=social)](https://github.com/browser-use/web-ui/stargazers)
 [![Discord](https://img.shields.io/discord/1303749220842340412?color=7289DA&label=Discord&logo=discord&logoColor=white)](https://link.browser-use.com/discord)
@@ -29,13 +34,27 @@ Read the [quickstart guide](https://docs.browser-use.com/quickstart#prepare-the-
 
 > Python 3.11 or higher is required.
 
-First, we recommend using [uv](https://docs.astral.sh/uv/) to setup the Python environment.
+You can install everything manually or use the provided helper script.
+
+#### Quick Setup
+
+Run the `setup.sh` script to create a virtual environment, install the
+dependencies and prepare Playwright:
+
+```bash
+./setup.sh
+```
+
+#### Manual Setup
+
+If you prefer the manual steps, first create a virtual environment using
+[uv](https://docs.astral.sh/uv/):
 
 ```bash
 uv venv --python 3.11
 ```
 
-and activate it with:
+Activate it with:
 
 ```bash
 source .venv/bin/activate
@@ -47,7 +66,7 @@ Install the dependencies:
 uv pip install -r requirements.txt
 ```
 
-Then install playwright:
+Finally, install Playwright:
 
 ```bash
 playwright install

@@ -1,4 +1,3 @@
-import pdb
 import logging
 
 from dotenv import load_dotenv
@@ -8,28 +7,23 @@ import os
 import glob
 import asyncio
 import argparse
-import os
 
 logger = logging.getLogger(__name__)
 
 import gradio as gr
 
 from browser_use.agent.service import Agent
-from playwright.async_api import async_playwright
 from browser_use.browser.browser import Browser, BrowserConfig
 from browser_use.browser.context import (
     BrowserContextConfig,
     BrowserContextWindowSize,
 )
-from langchain_ollama import ChatOllama
-from playwright.async_api import async_playwright
 from src.utils.agent_state import AgentState
 
 from src.utils import utils
 from src.agent.custom_agent import CustomAgent
 from src.browser.custom_browser import CustomBrowser
 from src.agent.custom_prompts import CustomSystemPrompt
-from src.browser.custom_context import BrowserContextConfig, CustomBrowserContext
 from src.controller.custom_controller import CustomController
 from gradio.themes import Citrus, Default, Glass, Monochrome, Ocean, Origin, Soft, Base
 from src.utils.default_config_settings import default_config, load_config_from_file, save_config_to_file, save_current_config, update_ui_from_config
@@ -42,6 +36,9 @@ _global_browser_context = None
 
 # Create the global agent state instance
 _global_agent_state = AgentState()
+
+# Task queue for sequential execution
+task_queue = []
 
 async def stop_agent():
     """Request the agent to stop and update UI with enhanced feedback"""
@@ -69,6 +66,85 @@ async def stop_agent():
             gr.update(value="Stop", interactive=True),
             gr.update(interactive=True)
         )
+
+
+def add_task_to_queue(task: str):
+    """Add a task description to the global queue."""
+    global task_queue
+    if task.strip():
+        task_queue.append(task.strip())
+    return "\n".join(f"{i+1}. {t}" for i, t in enumerate(task_queue))
+
+
+async def run_task_queue(
+    agent_type,
+    llm_provider,
+    llm_model_name,
+    llm_temperature,
+    llm_base_url,
+    llm_api_key,
+    use_own_browser,
+    keep_browser_open,
+    headless,
+    disable_security,
+    window_w,
+    window_h,
+    save_recording_path,
+    save_agent_history_path,
+    save_trace_path,
+    enable_recording,
+    add_infos,
+    max_steps,
+    use_vision,
+    max_actions_per_step,
+    tool_calling_method,
+):
+    """Run all tasks currently queued sequentially."""
+    global task_queue
+
+    while task_queue:
+        current_task = task_queue.pop(0)
+        async for result in run_with_stream(
+            agent_type,
+            llm_provider,
+            llm_model_name,
+            llm_temperature,
+            llm_base_url,
+            llm_api_key,
+            use_own_browser,
+            keep_browser_open,
+            headless,
+            disable_security,
+            window_w,
+            window_h,
+            save_recording_path,
+            save_agent_history_path,
+            save_trace_path,
+            enable_recording,
+            current_task,
+            add_infos,
+            max_steps,
+            use_vision,
+            max_actions_per_step,
+            tool_calling_method,
+        ):
+            yield list(result) + [gr.update(value="\n".join(f"{i+1}. {t}" for i, t in enumerate(task_queue)))]
+
+    # Queue is empty after processing
+    if not task_queue:
+        yield [
+            f"<h1 style='width:80vw; height:50vh'>Waiting for browser session...</h1>",
+            "",
+            "",
+            "",
+            "",
+            None,
+            None,
+            None,
+            gr.update(value="Stop", interactive=True),
+            gr.update(interactive=True),
+            gr.update(value=""),
+        ]
 
 async def run_browser_agent(
         agent_type,
@@ -609,13 +685,13 @@ def create_ui(config, theme_name="Ocean"):
     """
 
     with gr.Blocks(
-            title="Browser Use WebUI", theme=theme_map[theme_name], css=css, js=js
+            title="AUTONOBOT", theme=theme_map[theme_name], css=css, js=js
     ) as demo:
         with gr.Row():
             gr.Markdown(
                 """
-                # 🌐 Browser Use WebUI
-                ### Control your browser with AI assistance
+                # AUTONOBOT
+                ### Agente de navegacion autonoma para cualquier tarea
                 """,
                 elem_classes=["header-text"],
             )
@@ -779,6 +855,15 @@ def create_ui(config, theme_name="Ocean"):
                     info="Optional hints to help the LLM complete the task",
                 )
 
+                queue_display = gr.Textbox(
+                    label="Task Queue",
+                    interactive=False,
+                    lines=5,
+                )
+
+                add_queue_button = gr.Button("➕ Add to Queue")
+                run_queue_button = gr.Button("🚀 Run Task Queue", variant="primary")
+
                 with gr.Row():
                     run_button = gr.Button("▶️ Run Agent", variant="primary", scale=2)
                     stop_button = gr.Button("⏹️ Stop", variant="stop", scale=1)
@@ -864,6 +949,35 @@ def create_ui(config, theme_name="Ocean"):
                     fn=stop_agent,
                     inputs=[],
                     outputs=[errors_output, stop_button, run_button],
+                )
+
+                add_queue_button.click(
+                    fn=add_task_to_queue,
+                    inputs=[task],
+                    outputs=[queue_display]
+                )
+
+                run_queue_button.click(
+                    fn=run_task_queue,
+                    inputs=[
+                        agent_type, llm_provider, llm_model_name, llm_temperature, llm_base_url, llm_api_key,
+                        use_own_browser, keep_browser_open, headless, disable_security, window_w, window_h,
+                        save_recording_path, save_agent_history_path, save_trace_path,
+                        enable_recording, add_infos, max_steps, use_vision, max_actions_per_step, tool_calling_method
+                    ],
+                    outputs=[
+                        browser_view,
+                        final_result_output,
+                        errors_output,
+                        model_actions_output,
+                        model_thoughts_output,
+                        recording_display,
+                        trace_file,
+                        agent_history_file,
+                        stop_button,
+                        run_button,
+                        queue_display
+                    ],
                 )
 
                 # Run button click handler
